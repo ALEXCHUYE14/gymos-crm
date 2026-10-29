@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, StatTile } from '@/components/ui/card';
 import { Field, Input } from '@/components/ui/form';
 import { EmptyState, Skeleton } from '@/components/ui/feedback';
+import { fetchAllPages } from '@/lib/supabase/paginate';
 
 const PRESETS = [
   { label: 'Hoy', days: 0 },
@@ -41,14 +42,17 @@ export function ReportsView() {
     if (from > to) return;
     let cancelled = false;
     setLoading(true);
-    getSupabaseBrowser()
-      .rpc('revenue_report', { p_from: from, p_to: to })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        setLoading(false);
-        if (error) return void toast.error(humanizeError(error));
-        setRows(((data ?? []) as RevenueRow[]).map((r) => ({ ...r, total: Number(r.total), sales_count: Number(r.sales_count) })));
-      });
+    // Un año con varios métodos de pago supera las 1000 filas que Supabase entrega por petición:
+    // se pide por páginas (revenue_report tiene orden total desde la migración 0005)
+    const supabase = getSupabaseBrowser();
+    void fetchAllPages<RevenueRow>((rFrom, rTo) =>
+      supabase.rpc('revenue_report', { p_from: from, p_to: to }).range(rFrom, rTo),
+    ).then(({ data, error }) => {
+      if (cancelled) return;
+      setLoading(false);
+      if (error) return void toast.error(humanizeError(error));
+      setRows(data.map((r) => ({ ...r, total: Number(r.total), sales_count: Number(r.sales_count) })));
+    });
     return () => {
       cancelled = true;
     };

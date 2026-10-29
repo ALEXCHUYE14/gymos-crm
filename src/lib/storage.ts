@@ -17,9 +17,14 @@ export async function memberPhotoUrl(supabase: SupabaseClient, path: string | nu
   return data.signedUrl;
 }
 
-export function validateImage(file: File, extraTypes: string[] = []): string | null {
+/** Fotos de socios: se aceptan originales grandes porque se comprimen antes de subir. */
+export const MAX_PHOTO_SOURCE_BYTES = 20 * 1024 * 1024;
+/** Los nombres de archivo son únicos (timestamp): el navegador/CDN puede cachearlos 1 año. */
+export const IMMUTABLE_CACHE_SECONDS = '31536000';
+
+export function validateImage(file: File, extraTypes: string[] = [], maxBytes = MAX_IMAGE_BYTES): string | null {
   if (![...ALLOWED_IMAGE_TYPES, ...extraTypes].includes(file.type)) return 'Formato no permitido (usa PNG, JPG o WEBP).';
-  if (file.size > MAX_IMAGE_BYTES) return 'La imagen supera los 3 MB.';
+  if (file.size > maxBytes) return `La imagen supera los ${Math.round(maxBytes / 1024 / 1024)} MB.`;
   return null;
 }
 

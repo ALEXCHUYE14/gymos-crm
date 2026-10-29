@@ -8,7 +8,7 @@ import { Bell, Building2, Clock, ImageUp, QrCode, Send, Trash2 } from 'lucide-re
 import { toast } from 'sonner';
 import type { z } from 'zod';
 import { getSupabaseBrowser } from '@/lib/supabase/client';
-import { BRANDING_BUCKET, brandingPublicUrl, extensionFor, validateImage } from '@/lib/storage';
+import { BRANDING_BUCKET, brandingPublicUrl, extensionFor, IMMUTABLE_CACHE_SECONDS, validateImage } from '@/lib/storage';
 import { humanizeError } from '@/lib/errors';
 import {
   businessRulesSchema,
@@ -26,6 +26,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Field, Input, Select, Switch, Textarea } from '@/components/ui/form';
 import { saveBusinessInfo, saveBusinessRules, saveNotificationSettings, setBrandingAsset } from './actions';
+import defaultLogo from '@/assets/brand/logo-circle.webp';
 
 export interface NotificationLogRow {
   id: string;
@@ -158,7 +159,7 @@ function BrandingCard({ kind, readOnly }: { kind: 'logo' | 'payment_qr'; readOnl
     setBusy(true);
     const supabase = getSupabaseBrowser();
     const path = `${kind}/${Date.now()}.${extensionFor(file)}`;
-    const { error } = await supabase.storage.from(BRANDING_BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+    const { error } = await supabase.storage.from(BRANDING_BUCKET).upload(path, file, { contentType: file.type, upsert: false, cacheControl: IMMUTABLE_CACHE_SECONDS });
     if (error) {
       setBusy(false);
       return void toast.error(humanizeError(error));
@@ -188,12 +189,18 @@ function BrandingCard({ kind, readOnly }: { kind: 'logo' | 'payment_qr'; readOnl
           {current ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={current} alt={meta.title} className="h-full w-full bg-white object-contain p-2" />
+          ) : kind === 'logo' ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={defaultLogo.src} alt="Logo predeterminado" className="h-full w-full object-contain p-1" />
           ) : (
             <meta.icon className="h-8 w-8 text-muted" strokeWidth={1.25} />
           )}
         </div>
         {!readOnly && (
           <div className="flex flex-col gap-2">
+            {kind === 'logo' && !current && (
+              <p className="text-xs text-muted">Usando el logo predeterminado. Sube el tuyo para mostrarlo en el login y el menú.</p>
+            )}
             <Button variant="outline" loading={busy} onClick={() => inputRef.current?.click()}>
               <ImageUp className="h-4 w-4" /> {current ? 'Reemplazar' : 'Subir imagen'}
             </Button>

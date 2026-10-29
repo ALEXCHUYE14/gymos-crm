@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const ctx = await getSessionContext();
-  if (!ctx) redirect('/login');
+  if (!ctx) redirect('/login?error=session');
   if (!ctx.profile.active) redirect('/login?error=inactive');
 
   const supabase = await getSupabaseServer();

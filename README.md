@@ -17,8 +17,9 @@ npm run dev                   # http://localhost:3000
 ### Base de datos (una sola vez)
 
 1. Crea un proyecto en Supabase.
-2. Abre **SQL Editor** y ejecuta completo `supabase/migrations/0001_gym_crm_schema.sql`
-   (o, con la CLI: `supabase link` y `supabase db push`).
+2. Abre **SQL Editor** y ejecuta, en orden, los archivos de `supabase/migrations/`:
+   `0001_gym_crm_schema.sql`, `0002_fixes.sql`, `0003_class_credits_checkin.sql`, `0004_login_branding.sql` y `0005_performance.sql`
+   (o, con la CLI: `supabase link` y `supabase db push`). 0002 a 0005 se pueden re-ejecutar sin riesgo.
 3. En **Authentication → Providers → Email**, **desactiva "Allow new users to sign up"**. El personal se crea desde el módulo *Personal y permisos*.
 4. Crea el primer usuario en **Authentication → Users → Add user** (con *Auto Confirm*). **El primer usuario del sistema se convierte automáticamente en Super Admin.**
 5. Inicia sesión en `/login`.
@@ -41,6 +42,8 @@ npm run dev                   # http://localhost:3000
 ```sql
 select cron.schedule('gym-expire-memberships', '5 5 * * *', $$ select public.expire_memberships(); $$);
 ```
+
+Si despliegas en Vercel no es imprescindible: el cron diario de `/api/reminders` también ejecuta `expire_memberships()` antes de enviar recordatorios (aunque las notificaciones estén desactivadas).
 
 **Recordatorios de vencimiento**: `vercel.json` programa `GET /api/reminders` a diario (Vercel envía `Authorization: Bearer $CRON_SECRET`). Fuera de Vercel, usa cualquier cron:
 

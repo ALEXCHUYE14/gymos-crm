@@ -113,6 +113,8 @@ export interface Membership {
   frozen_at: string | null;
   freeze_days_used: number;
   sale_id: string | null;
+  /** Clases restantes de un paquete; null = sin límite. */
+  class_credits_left: number | null;
   created_at: string;
 }
 
@@ -215,6 +217,7 @@ export interface ClassBooking {
   id: string;
   class_id: string;
   member_id: string;
+  membership_id: string | null;
   status: BookingStatus;
   created_at: string;
 }
@@ -230,6 +233,9 @@ export interface CheckinResponse {
   plan_name?: string | null;
   end_date?: string | null;
   days_left?: number | null;
+  class_credits_left?: number | null;
+  /** true si ya había ingresado hace poco: no se registró otra asistencia. */
+  repeat?: boolean;
   debt?: number;
 }
 

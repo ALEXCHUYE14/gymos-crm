@@ -19,6 +19,8 @@ import { DataTable, type Column } from '@/components/ui/data-table';
 import { ConfirmDialog, Modal } from '@/components/ui/modal';
 import { createMember, deleteMembers } from './actions';
 import { MemberForm } from './member-form';
+import type { PostgrestError } from '@supabase/supabase-js';
+import { fetchAllPages } from '@/lib/supabase/paginate';
 
 const PAGE_SIZE = 20;
 type Row = Pick<Member, 'id' | 'dni' | 'first_name' | 'last_name' | 'phone' | 'email' | 'status' | 'created_at'>;
@@ -51,7 +53,8 @@ export function MembersTable({ trainers }: { trainers: Array<{ id: string; full_
       if (term) q = q.or(`dni.ilike.${term}%,first_name.ilike.%${term}%,last_name.ilike.%${term}%,phone.ilike.%${term}%`);
       if (status) q = q.eq('status', status);
       q = sort === 'name' ? q.order('last_name').order('first_name') : q.order('created_at', { ascending: false });
-      return q;
+      // Desempate por id: orden total, para que la paginación no repita ni omita socios
+      return q.order('id');
     },
     [debounced, status, sort],
   );
@@ -75,14 +78,18 @@ export function MembersTable({ trainers }: { trainers: Array<{ id: string; full_
   }, [buildQuery, page, reloadKey]);
 
   const exportRows = async (onlySelected: boolean) => {
-    let q = buildQuery('dni, first_name, last_name, phone, email, status, created_at', false);
-    if (onlySelected) q = q.in('id', Array.from(selected));
-    const { data, error } = await q.limit(5000);
+    const ids = Array.from(selected);
+    // Supabase entrega máximo 1000 filas por petición: se pide por páginas
+    const { data, error, truncated } = await fetchAllPages<Row>((from, to) => {
+      const q = buildQuery('dni, first_name, last_name, phone, email, status, created_at', false);
+      return (onlySelected ? q.in('id', ids) : q).range(from, to) as unknown as PromiseLike<{ data: Row[] | null; error: PostgrestError | null }>;
+    });
     if (error) {
       toast.error(humanizeError(error));
       return;
     }
-    const list = (data ?? []) as unknown as Row[];
+    if (truncated) toast.warning('Se exportaron los primeros 50 000 socios. Usa filtros para exportar el resto.');
+    const list = data;
     await exportToExcel(
       list.map((m) => ({
         DNI: m.dni,

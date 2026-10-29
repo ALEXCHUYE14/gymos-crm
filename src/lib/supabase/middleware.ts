@@ -25,10 +25,11 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // getUser() valida el JWT contra Supabase Auth (no confiar solo en la cookie)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() refresca la sesión si expiró y verifica la firma del JWT (no confiar solo en la cookie).
+  // Con claves de firma asimétricas no llama al servidor de Auth: el middleware corre en cada
+  // navegación y prefetch, así que esto evita miles de peticiones (y logs) a Supabase.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const user = claimsData?.claims?.sub ? { id: claimsData.claims.sub } : null;
 
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
@@ -40,7 +41,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && path === '/login') {
+  // Con ?error= el login debe mostrarse para cerrar la sesión inválida (si no, bucle /login ↔ /dashboard)
+  if (user && path === '/login' && !request.nextUrl.searchParams.has('error')) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/dashboard';
     redirectUrl.search = '';

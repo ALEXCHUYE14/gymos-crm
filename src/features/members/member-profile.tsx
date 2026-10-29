@@ -24,7 +24,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSupabaseBrowser } from '@/lib/supabase/client';
-import { extensionFor, MEMBER_PHOTOS_BUCKET, validateImage } from '@/lib/storage';
+import { extensionFor, IMMUTABLE_CACHE_SECONDS, MAX_PHOTO_SOURCE_BYTES, MEMBER_PHOTOS_BUCKET, validateImage } from '@/lib/storage';
+import { compressImage } from '@/lib/image';
 import { humanizeError } from '@/lib/errors';
 import { cn, formatDate, formatDateTime, formatMoney, PAYMENT_LABELS, STATUS_LABELS } from '@/lib/utils';
 import { useCan, useCurrency } from '@/stores/session-store';
@@ -82,15 +83,25 @@ export function MemberProfile({ member, photoUrl, memberships, plans, routines, 
   const current = memberships.find((m) => m.status === 'active' || m.status === 'frozen');
 
   const uploadPhoto = async (file: File) => {
-    const invalid = validateImage(file);
+    const invalid = validateImage(file, [], MAX_PHOTO_SOURCE_BYTES);
     if (invalid) {
       toast.error(invalid);
       return;
     }
     setUploading(true);
-    const path = `${member.id}/${Date.now()}.${extensionFor(file)}`;
+    // Se comprime a 512 px antes de subir (ahorra almacenamiento y egress en cada visualización)
+    const photo = await compressImage(file);
+    const stillInvalid = validateImage(photo);
+    if (stillInvalid) {
+      setUploading(false);
+      toast.error(stillInvalid);
+      return;
+    }
+    const path = `${member.id}/${Date.now()}.${extensionFor(photo)}`;
     const supabase = getSupabaseBrowser();
-    const { error } = await supabase.storage.from(MEMBER_PHOTOS_BUCKET).upload(path, file, { upsert: false, contentType: file.type });
+    const { error } = await supabase.storage
+      .from(MEMBER_PHOTOS_BUCKET)
+      .upload(path, photo, { upsert: false, contentType: photo.type, cacheControl: IMMUTABLE_CACHE_SECONDS });
     if (error) {
       setUploading(false);
       toast.error(humanizeError(error));
@@ -256,6 +267,7 @@ export function MemberProfile({ member, photoUrl, memberships, plans, routines, 
                           {formatDate(m.start_date)} → {formatDate(m.end_date)} · {formatMoney(m.amount_paid, currency)} de{' '}
                           {formatMoney(m.price, currency)}
                           {m.freeze_days_used > 0 && ` · ${m.freeze_days_used} días congelados`}
+                          {typeof m.class_credits_left === 'number' && ` · ${m.class_credits_left} clase(s) restante(s)`}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-1.5">

@@ -6,6 +6,9 @@ import { formatDate } from '@/lib/utils';
 import type { BusinessSettings } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+const REMINDER_BATCH = 10;
 
 interface DueRow {
   member_id: string;
@@ -62,11 +65,17 @@ async function run(request: NextRequest) {
   }
 
   const admin = getSupabaseAdmin();
+
+  // Vence membresías y recalcula estados de socios a diario, aunque no se haya programado pg_cron.
+  // Es idempotente: si pg_cron también lo ejecuta, no pasa nada.
+  const { data: expiredCount, error: expireError } = await admin.rpc('expire_memberships');
+  const expired = expireError ? { error: expireError.message } : (expiredCount as number);
+
   const { data: settingsData, error: settingsError } = await admin.from('business_settings').select('*').eq('id', 1).single();
-  if (settingsError || !settingsData) return NextResponse.json({ error: 'No se pudo leer la configuración' }, { status: 500 });
+  if (settingsError || !settingsData) return NextResponse.json({ error: 'No se pudo leer la configuración', expired }, { status: 500 });
   const settings = settingsData as BusinessSettings;
 
-  if (!settings.notifications_enabled) return NextResponse.json({ sent: 0, failed: 0, skipped: 'Notificaciones desactivadas' });
+  if (!settings.notifications_enabled) return NextResponse.json({ sent: 0, failed: 0, expired, skipped: 'Notificaciones desactivadas' });
 
   const { data, error } = await admin.rpc('members_due_for_reminder', { p_days: settings.reminder_days_before });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -79,26 +88,33 @@ async function run(request: NextRequest) {
   const rows = ((data ?? []) as DueRow[]).filter((r) => !already.has(r.member_id)).slice(0, 500);
   let sent = 0;
   let failed = 0;
-  const logs: Array<Record<string, unknown>> = [];
 
-  for (const row of rows) {
+  const sendTo = async (row: DueRow) => {
     const message = render(settings.reminder_template, row);
     const base = { business: settings.name, member: row.full_name, plan: row.plan_name, end_date: row.end_date, days_left: row.days_left, message };
     const targets: Array<{ channel: 'whatsapp' | 'email'; url: string; to: string }> = [];
     if (settings.whatsapp_webhook_url && row.phone) targets.push({ channel: 'whatsapp', url: settings.whatsapp_webhook_url, to: row.phone });
     if (settings.email_webhook_url && row.email) targets.push({ channel: 'email', url: settings.email_webhook_url, to: row.email });
 
-    for (const t of targets) {
-      const payload = { ...base, channel: t.channel, to: t.to };
-      const err = await postWebhook(t.url, payload);
-      if (err) failed += 1;
-      else sent += 1;
-      logs.push({ member_id: row.member_id, channel: t.channel, payload, status: err ? 'failed' : 'sent', error: err });
-    }
+    return Promise.all(
+      targets.map(async (t) => {
+        const payload = { ...base, channel: t.channel, to: t.to };
+        const err = await postWebhook(t.url, payload);
+        if (err) failed += 1;
+        else sent += 1;
+        return { member_id: row.member_id, channel: t.channel, payload, status: err ? 'failed' : 'sent', error: err };
+      }),
+    );
+  };
+
+  // Lotes en paralelo y log por lote: si la función se corta por tiempo, lo ya enviado queda registrado
+  // y la siguiente ejecución no lo reenvía.
+  for (let i = 0; i < rows.length; i += REMINDER_BATCH) {
+    const logs = (await Promise.all(rows.slice(i, i + REMINDER_BATCH).map(sendTo))).flat();
+    if (logs.length) await admin.from('notification_log').insert(logs);
   }
 
-  if (logs.length) await admin.from('notification_log').insert(logs);
-  return NextResponse.json({ sent, failed, candidates: rows.length });
+  return NextResponse.json({ sent, failed, expired, candidates: rows.length });
 }
 
 export async function GET(request: NextRequest) {

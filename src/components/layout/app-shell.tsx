@@ -14,6 +14,7 @@ import type { BusinessSettings, ProfileWithRole } from '@/types/database';
 import type { PermissionKey } from '@/types/permissions';
 import { Avatar } from '@/components/ui/feedback';
 import { NAV_ITEMS, type NavItem } from './nav-config';
+import defaultLogo from '@/assets/brand/logo-circle.webp';
 
 interface AppShellProps {
   children: ReactNode;
@@ -238,14 +239,14 @@ function ShellFrame({ children }: { children: ReactNode }) {
 }
 
 function BrandMark({ logo, name }: { logo: string | null; name: string }) {
-  if (logo) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={logo} alt={name} className="h-9 w-9 shrink-0 rounded-lg border border-line object-contain" />;
-  }
+  // Sin logo personalizado se usa el logo predeterminado de la marca
+  // eslint-disable-next-line @next/next/no-img-element
   return (
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink font-display text-sm font-bold text-canvas">
-      {name.slice(0, 1).toUpperCase()}
-    </div>
+    <img
+      src={logo ?? defaultLogo.src}
+      alt={name}
+      className={cn('h-9 w-9 shrink-0 object-contain', logo ? 'rounded-lg border border-line' : 'rounded-full border-2 border-black')}
+    />
   );
 }
 

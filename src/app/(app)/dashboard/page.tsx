@@ -25,7 +25,7 @@ const RESULT_LABEL: Record<CheckinResult, string> = { granted: 'Autorizado', war
 
 export default async function DashboardPage() {
   const ctx = await getSessionContext();
-  if (!ctx) redirect('/login');
+  if (!ctx) redirect('/login?error=session');
   const supabase = await getSupabaseServer();
   const canCheckins = hasPermission(ctx, 'checkin', 'read') || hasPermission(ctx, 'members', 'read');
 

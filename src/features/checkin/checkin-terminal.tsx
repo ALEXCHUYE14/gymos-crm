@@ -127,7 +127,7 @@ export function CheckinTerminal() {
       if (soundEnabled) playTone(res.result);
       if ('vibrate' in navigator) navigator.vibrate(res.result === 'granted' ? 60 : [80, 60, 80]);
       setRecent((prev) =>
-        [{ id: crypto.randomUUID(), name: res.full_name ?? identifier, result: res.result, at: new Date().toISOString() }, ...prev].slice(0, 12),
+        [{ id: crypto.randomUUID(), name: `${res.full_name ?? identifier}${res.repeat ? ' · repetido' : ''}`, result: res.result, at: new Date().toISOString() }, ...prev].slice(0, 12),
       );
       if (res.photo_path) {
         void memberPhotoUrl(supabase, res.photo_path).then(setPhoto);
@@ -162,8 +162,13 @@ export function CheckinTerminal() {
       setCameraOn(true);
       const detector = new Detector({ formats: ['qr_code'] });
       requestAnimationFrame(async function loop() {
+        if (streamRef.current !== stream) return;
         const video = videoRef.current;
-        if (!streamRef.current || !video) return;
+        // El <video> se monta tras setCameraOn(true): si aún no existe, reintentar en el siguiente ciclo
+        if (!video) {
+          setTimeout(() => requestAnimationFrame(loop), 100);
+          return;
+        }
         if (video.srcObject !== stream) {
           video.srcObject = stream;
           await video.play().catch(() => undefined);
@@ -280,6 +285,11 @@ export function CheckinTerminal() {
                     {typeof result.days_left === 'number' && (
                       <span className="font-semibold">
                         {result.days_left >= 0 ? `${result.days_left} día(s) restantes` : `Vencida hace ${-result.days_left} día(s)`}
+                      </span>
+                    )}
+                    {typeof result.class_credits_left === 'number' && (
+                      <span className={cn('font-semibold', result.class_credits_left === 0 && 'text-danger')}>
+                        {result.class_credits_left} clase(s) disponible(s)
                       </span>
                     )}
                     {!!result.debt && result.debt > 0 && <span className="font-semibold text-danger">Deuda: {formatMoney(result.debt, currency)}</span>}
