@@ -23,6 +23,10 @@ npm run dev                   # http://localhost:3000
 3. En **Authentication → Providers → Email**, **desactiva "Allow new users to sign up"**. El personal se crea desde el módulo *Personal y permisos*.
 4. Crea el primer usuario en **Authentication → Users → Add user** (con *Auto Confirm*). **El primer usuario del sistema se convierte automáticamente en Super Admin.**
 5. Inicia sesión en `/login`.
+6. **Recuperación de contraseña:** en **Authentication → URL Configuration**, pon tu dominio en *Site URL* y agrega
+   `https://tu-dominio/auth/callback` y `http://localhost:3000/auth/callback` en *Redirect URLs*.
+   El correo integrado de Supabase admite muy pocos envíos por hora: para producción configura un SMTP propio
+   (Resend, Brevo, etc.) en **Project Settings → Authentication → SMTP Settings**.
 
 ### Variables de entorno
 

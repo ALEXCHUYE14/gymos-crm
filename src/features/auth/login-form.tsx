@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, LogIn, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSupabaseBrowser } from '@/lib/supabase/client';
-import { loginSchema, type LoginInput } from '@/lib/validations';
+import { forgotPasswordSchema, loginSchema, type ForgotPasswordInput, type LoginInput } from '@/lib/validations';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
@@ -26,12 +26,14 @@ const INPUT_CLASS =
 const LOGIN_ERRORS: Record<string, string> = {
   inactive: 'Tu cuenta está desactivada o no tiene un rol asignado. Contacta al administrador.',
   session: 'No se pudo cargar tu perfil. Vuelve a iniciar sesión o contacta al administrador.',
+  recovery: 'El enlace de recuperación expiró o se abrió en otro navegador. Solicita uno nuevo.',
 };
 
 export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
+  const [forgot, setForgot] = useState(false);
   const {
     register,
     handleSubmit,
@@ -55,6 +57,8 @@ export function LoginForm() {
     router.replace(safeNext(params.get('next')));
     router.refresh();
   };
+
+  if (forgot) return <ForgotPasswordForm onBack={() => setForgot(false)} />;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-4" noValidate>
@@ -100,6 +104,78 @@ export function LoginForm() {
         {!isSubmitting && <LogIn className="h-4 w-4" />}
         Ingresar
       </Button>
+      <button
+        type="button"
+        onClick={() => setForgot(true)}
+        className="block w-full text-center text-sm text-white/60 underline-offset-4 hover:text-white hover:underline"
+      >
+        ¿Olvidaste tu contraseña?
+      </button>
     </form>
+  );
+}
+
+function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
+  const [sent, setSent] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<ForgotPasswordInput>({ resolver: zodResolver(forgotPasswordSchema), defaultValues: { email: '' } });
+
+  const onSubmit = async ({ email }: ForgotPasswordInput) => {
+    const { error } = await getSupabaseBrowser().auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback`,
+    });
+    // Mismo mensaje exista o no la cuenta (no revela qué correos están registrados); solo se avisa el límite de envíos
+    if (error?.status === 429) {
+      toast.error('Demasiadas solicitudes. Espera unos minutos e inténtalo de nuevo.');
+      return;
+    }
+    setSent(true);
+  };
+
+  return (
+    <div className="mt-8 space-y-4">
+      {sent ? (
+        <p className="rounded-xl border border-white/15 bg-white/[0.06] p-4 text-sm text-white/80">
+          Si el correo pertenece a una cuenta del personal, recibirás un enlace para crear una nueva contraseña. Ábrelo
+          en este mismo navegador.
+        </p>
+      ) : (
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          <p className="text-sm text-white/60">Te enviaremos un enlace para crear una nueva contraseña.</p>
+          <Field label="Correo" htmlFor="forgot-email" error={errors.email?.message}>
+            <Input
+              id="forgot-email"
+              type="email"
+              autoComplete="email"
+              inputMode="email"
+              placeholder="tu@correo.com"
+              aria-invalid={!!errors.email}
+              className={INPUT_CLASS}
+              {...register('email')}
+            />
+          </Field>
+          <Button
+            type="submit"
+            size="lg"
+            loading={isSubmitting}
+            className="w-full bg-[#d4a63a] font-semibold uppercase tracking-[0.14em] text-[#16130b] shadow-lg shadow-[#d4a63a]/20 hover:bg-[#e2b752] focus-visible:ring-[#d4a63a] focus-visible:ring-offset-[#101214]"
+          >
+            {!isSubmitting && <Mail className="h-4 w-4" />}
+            Enviar enlace
+          </Button>
+        </form>
+      )}
+      <button
+        type="button"
+        onClick={onBack}
+        className="mx-auto flex items-center gap-1.5 text-sm text-white/60 underline-offset-4 hover:text-white hover:underline"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Volver a iniciar sesión
+      </button>
+    </div>
   );
 }

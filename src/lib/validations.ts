@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { APP_MODULES, PERM_ACTIONS } from '@/types/permissions';
 
+// Mensajes de error genéricos de Zod en español (los personalizados de cada esquema tienen prioridad)
+z.config(z.locales.es());
+
 /** Esquemas compartidos: los usa React Hook Form en el cliente y las Server Actions en el servidor. */
 
 const optionalText = (max: number) =>
@@ -19,6 +22,25 @@ export const loginSchema = z.object({
   password: z.string().min(8, 'Mínimo 8 caracteres').max(72),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Correo inválido'),
+});
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+/** Política de contraseñas del personal: alta, cambio y recuperación. */
+const strongPassword = z
+  .string()
+  .min(10, 'Mínimo 10 caracteres')
+  .max(72)
+  .regex(/[A-Z]/, 'Incluye una mayúscula')
+  .regex(/[a-z]/, 'Incluye una minúscula')
+  .regex(/[0-9]/, 'Incluye un número');
+
+export const newPasswordSchema = z
+  .object({ password: strongPassword, confirm: z.string() })
+  .refine((v) => v.password === v.confirm, { message: 'Las contraseñas no coinciden', path: ['confirm'] });
+export type NewPasswordInput = z.infer<typeof newPasswordSchema>;
 
 export const memberSchema = z.object({
   dni: z
@@ -161,13 +183,7 @@ export type NotificationSettingsValues = z.input<typeof notificationSettingsSche
 export const inviteStaffSchema = z.object({
   full_name: z.string().trim().min(3, 'Mínimo 3 caracteres').max(100),
   email: z.string().trim().toLowerCase().email('Correo inválido'),
-  password: z
-    .string()
-    .min(10, 'Mínimo 10 caracteres')
-    .max(72)
-    .regex(/[A-Z]/, 'Incluye una mayúscula')
-    .regex(/[a-z]/, 'Incluye una minúscula')
-    .regex(/[0-9]/, 'Incluye un número'),
+  password: strongPassword,
   role_key: z.enum(['branch_admin', 'receptionist', 'trainer', 'auditor', 'super_admin']),
 });
 export type InviteStaffValues = z.input<typeof inviteStaffSchema>;

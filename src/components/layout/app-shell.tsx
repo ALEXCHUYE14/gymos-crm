@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react';
+import { KeyRound, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { getSupabaseBrowser } from '@/lib/supabase/client';
@@ -124,6 +124,7 @@ function ShellFrame({ children }: { children: ReactNode }) {
               </div>
             )}
             <ThemeToggle />
+            <AccountLink />
             <button
               type="button"
               onClick={signOut}
@@ -153,6 +154,7 @@ function ShellFrame({ children }: { children: ReactNode }) {
         </div>
         <div className="flex items-center gap-1">
           <ThemeToggle />
+          <AccountLink />
           <button
             type="button"
             onClick={signOut}
@@ -247,6 +249,19 @@ function BrandMark({ logo, name }: { logo: string | null; name: string }) {
       alt={name}
       className={cn('h-9 w-9 shrink-0 object-contain', logo ? 'rounded-lg border border-line' : 'rounded-full border-2 border-black')}
     />
+  );
+}
+
+function AccountLink() {
+  return (
+    <Link
+      href="/account"
+      className="rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-ink"
+      aria-label="Mi cuenta: cambiar contraseña"
+      title="Cambiar contraseña"
+    >
+      <KeyRound className="h-4 w-4" />
+    </Link>
   );
 }
 
