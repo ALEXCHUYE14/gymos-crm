@@ -20,6 +20,37 @@ interface BarcodeDetectorLike {
 }
 type BarcodeDetectorCtor = new (opts: { formats: string[] }) => BarcodeDetectorLike;
 
+/** Lee un QR del cuadro actual del video; devuelve null si no hay ninguno. */
+type QrReader = (video: HTMLVideoElement) => Promise<string | null>;
+
+// Ancho máximo del cuadro que se analiza con jsQR: suficiente para un QR en pantalla y liviano en celulares
+const JSQR_MAX_WIDTH = 640;
+
+/**
+ * Usa el BarcodeDetector nativo (Chrome Android/macOS) y, si el navegador no lo tiene (iPhone, Windows),
+ * jsQR, que se descarga solo al encender la cámara.
+ */
+async function createQrReader(): Promise<QrReader> {
+  const Detector = (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
+  if (Detector) {
+    const detector = new Detector({ formats: ['qr_code'] });
+    return async (video) => (await detector.detect(video))[0]?.rawValue ?? null;
+  }
+
+  const { default: jsQR } = await import('jsqr');
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) throw new Error('Canvas no disponible');
+  return async (video) => {
+    const scale = Math.min(1, JSQR_MAX_WIDTH / video.videoWidth);
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    return jsQR(data, width, height, { inversionAttempts: 'dontInvert' })?.data || null;
+  };
+}
+
 interface RecentEntry {
   id: string;
   name: string;
@@ -86,8 +117,14 @@ export function CheckinTerminal() {
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraSupported, setCameraSupported] = useState(false);
 
+  // Con la cámara encendida no se enfoca el campo: en el celular abriría el teclado encima del video
+  const focusInput = useCallback(() => {
+    if (!streamRef.current) inputRef.current?.focus();
+  }, []);
+
   useEffect(() => {
-    setCameraSupported(typeof window !== 'undefined' && 'BarcodeDetector' in window && !!navigator.mediaDevices);
+    // getUserMedia solo existe en https (o localhost): por http el botón no se muestra
+    setCameraSupported(typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
     inputRef.current?.focus();
   }, []);
 
@@ -97,10 +134,10 @@ export function CheckinTerminal() {
     const t = setTimeout(() => {
       setResult(null);
       setPhoto(null);
-      inputRef.current?.focus();
+      focusInput();
     }, RESET_MS);
     return () => clearTimeout(t);
-  }, [result]);
+  }, [result, focusInput]);
 
   const submitIdentifier = useCallback(
     async (raw: string) => {
@@ -118,7 +155,7 @@ export function CheckinTerminal() {
 
       if (error) {
         toast.error(humanizeError(error));
-        inputRef.current?.focus();
+        focusInput();
         return;
       }
       const res = data as CheckinResponse;
@@ -132,9 +169,9 @@ export function CheckinTerminal() {
       if (res.photo_path) {
         void memberPhotoUrl(supabase, res.photo_path).then(setPhoto);
       }
-      inputRef.current?.focus();
+      focusInput();
     },
-    [soundEnabled],
+    [soundEnabled, focusInput],
   );
 
   const onSubmit = (e: FormEvent) => {
@@ -151,8 +188,10 @@ export function CheckinTerminal() {
   useEffect(() => stopCamera, [stopCamera]);
 
   const startCamera = async () => {
-    const Detector = (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
-    if (!Detector) {
+    let readQr: QrReader;
+    try {
+      readQr = await createQrReader();
+    } catch {
       toast.error('Este navegador no soporta lectura de QR por cámara. Usa un lector USB o digita el DNI.');
       return;
     }
@@ -160,7 +199,6 @@ export function CheckinTerminal() {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
       streamRef.current = stream;
       setCameraOn(true);
-      const detector = new Detector({ formats: ['qr_code'] });
       requestAnimationFrame(async function loop() {
         if (streamRef.current !== stream) return;
         const video = videoRef.current;
@@ -175,8 +213,7 @@ export function CheckinTerminal() {
         }
         if (video.readyState >= 2 && !busyRef.current) {
           try {
-            const codes = await detector.detect(video);
-            const raw = codes[0]?.rawValue;
+            const raw = await readQr(video);
             const now = Date.now();
             // Evita lecturas duplicadas del mismo QR durante unos segundos
             if (raw && (raw !== lastScanRef.current.value || now - lastScanRef.current.at > RESET_MS)) {
