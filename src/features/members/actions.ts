@@ -1,9 +1,10 @@
 'use server';
 
+import { randomBytes } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { authorizeAction } from '@/lib/auth';
-import { humanizeError } from '@/lib/errors';
+import { humanizeError, isMissingSchemaError } from '@/lib/errors';
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { memberSchema, zodFieldErrors } from '@/lib/validations';
 import type { ActionResult } from '@/types/database';
@@ -95,4 +96,42 @@ export async function changeMembershipState(input: unknown): Promise<ActionResul
   revalidatePath('/members', 'layout');
   const messages = { freeze: 'Membresía congelada', unfreeze: 'Membresía reactivada', cancel: 'Membresía anulada' };
   return { ok: true, data: undefined, message: messages[parsed.data.action] };
+}
+
+const portalAccessSchema = z.object({
+  id: z.string().uuid(),
+  mode: z.enum(['enable', 'rotate', 'disable']),
+});
+
+/**
+ * Activa, regenera o desactiva el enlace del portal del socio.
+ * Regenerar invalida el enlace anterior (útil si el socio lo compartió por error).
+ */
+export async function setPortalAccess(input: unknown): Promise<ActionResult<{ token: string | null }>> {
+  const auth = await authorizeAction('members', 'update');
+  if (auth.error) return { ok: false, error: auth.error };
+  const parsed = portalAccessSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'Solicitud inválida' };
+
+  // 24 bytes aleatorios → 32 caracteres base64url (192 bits: imposible de adivinar)
+  const token = parsed.data.mode === 'disable' ? null : randomBytes(24).toString('base64url');
+  const supabase = await getSupabaseServer();
+  const { data, error } = await supabase
+    .from('members')
+    .update({ portal_token: token })
+    .eq('id', parsed.data.id)
+    .select('id');
+  if (error) {
+    return {
+      ok: false,
+      error: isMissingSchemaError(error)
+        ? 'Falta ejecutar la migración 0006 en Supabase para usar el portal.'
+        : humanizeError(error),
+    };
+  }
+  if (!data?.length) return { ok: false, error: 'Socio no encontrado' };
+
+  revalidatePath(`/members/${parsed.data.id}`);
+  const messages = { enable: 'Portal activado', rotate: 'Enlace regenerado: el anterior ya no funciona', disable: 'Portal desactivado' };
+  return { ok: true, data: { token }, message: messages[parsed.data.mode] };
 }

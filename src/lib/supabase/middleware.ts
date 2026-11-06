@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
-const PUBLIC_PATHS = ['/login', '/api/reminders', '/auth/callback'];
+// /p/<token>: portal del socio (sin sesión; lo protege el token secreto)
+const PUBLIC_PATHS = ['/login', '/api/reminders', '/auth/callback', '/p'];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });

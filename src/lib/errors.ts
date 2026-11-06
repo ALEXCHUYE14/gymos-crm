@@ -34,3 +34,11 @@ export function humanizeError(error: unknown): string {
   if (e.message?.includes('row-level security')) return 'No tienes permiso para realizar esta acción.';
   return e.message ?? 'Ocurrió un error inesperado.';
 }
+
+/** Códigos de Postgres/PostgREST cuando una tabla, columna o función aún no existe (migración sin ejecutar). */
+const MISSING_SCHEMA_CODES = new Set(['42P01', '42703', '42883', 'PGRST202', 'PGRST204', 'PGRST205']);
+
+export function isMissingSchemaError(error: unknown): boolean {
+  const code = (error as ErrorLike | null)?.code;
+  return !!code && MISSING_SCHEMA_CODES.has(code);
+}

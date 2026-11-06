@@ -2,7 +2,7 @@
 
 SaaS B2B para gimnasios construido con **Next.js 15 (App Router) + TypeScript estricto + Tailwind CSS + Supabase** (PostgreSQL, Auth, RLS, RPC y Storage).
 
-Módulos: socios (CRM 360°), recepción con check-in por QR/DNI, membresías con estado automático, POS de barra, caja por turno con arqueo, rutinas y clases con control de aforo, reportes financieros (Excel/PDF), personal con RBAC granular, ajustes globales y recordatorios automáticos por webhook.
+Módulos: socios (CRM 360°), recepción con check-in por QR/DNI, membresías con estado automático, POS de barra, caja por turno con arqueo, rutinas y clases con control de aforo, reportes financieros (Excel/PDF), personal con RBAC granular, ajustes globales, recordatorios automáticos por webhook, **portal del socio** (QR, membresía, rutina y reserva de clases desde el celular), **prospectos** (seguimiento de interesados hasta convertirlos en socios) y **retención** (socios inactivos, cumpleaños y vencidos sin renovar, con mensajes de WhatsApp listos).
 
 ---
 
@@ -18,8 +18,9 @@ npm run dev                   # http://localhost:3000
 
 1. Crea un proyecto en Supabase.
 2. Abre **SQL Editor** y ejecuta, en orden, los archivos de `supabase/migrations/`:
-   `0001_gym_crm_schema.sql`, `0002_fixes.sql`, `0003_class_credits_checkin.sql`, `0004_login_branding.sql` y `0005_performance.sql`
-   (o, con la CLI: `supabase link` y `supabase db push`). 0002 a 0005 se pueden re-ejecutar sin riesgo.
+   `0001_gym_crm_schema.sql`, `0002_fixes.sql`, `0003_class_credits_checkin.sql`, `0004_login_branding.sql`, `0005_performance.sql` y `0006_portal_leads_retention.sql`
+   (o, con la CLI: `supabase link` y `supabase db push`). 0002 a 0006 se pueden re-ejecutar sin riesgo.
+   Sin la 0006, Prospectos, Retención y el portal muestran un aviso en lugar de fallar.
 3. En **Authentication → Providers → Email**, **desactiva "Allow new users to sign up"**. El personal se crea desde el módulo *Personal y permisos*.
 4. Crea el primer usuario en **Authentication → Users → Add user** (con *Auto Confirm*). **El primer usuario del sistema se convierte automáticamente en Super Admin.**
 5. Inicia sesión en `/login`.
@@ -79,6 +80,12 @@ Conéctalo a tu proveedor (WhatsApp Cloud API, Twilio, n8n, Make, Resend…). No
 - Cabeceras de seguridad (HSTS, X-Frame-Options, nosniff, Referrer-Policy).
 
 ---
+
+### Portal del socio
+
+En el perfil de cada socio, **Portal → Activar portal** genera un enlace personal (`/p/…`) que se envía por WhatsApp.
+El socio no necesita usuario ni contraseña: el enlace es secreto (192 bits) y solo da acceso a sus datos.
+**Generar enlace nuevo** invalida el anterior; **Desactivar portal** lo revoca. Desde el celular puede agregarse a la pantalla de inicio como app.
 
 ## 4. Roles predefinidos
 

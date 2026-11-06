@@ -222,6 +222,39 @@ export const groupClassSchema = z.object({
 });
 export type GroupClassFormValues = z.input<typeof groupClassSchema>;
 
+export const LEAD_SOURCES = ['walk_in', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'referral', 'web', 'other'] as const;
+/** Estados que se eligen a mano; "won" solo se asigna al registrar al prospecto como socio. */
+export const LEAD_EDITABLE_STATUSES = ['new', 'contacted', 'trial', 'lost'] as const;
+
+export const leadSchema = z.object({
+  full_name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(120),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+?[0-9\s-]{6,20}$/, 'Teléfono inválido')
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => (v ? v.replace(/[\s-]/g, '') : null)),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email('Correo inválido')
+    .max(160)
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => (v ? v : null)),
+  source: z.enum(LEAD_SOURCES),
+  interest: optionalText(120),
+  status: z.enum(LEAD_EDITABLE_STATUSES),
+  next_follow_up: isoDate.optional().or(z.literal('')).transform((v) => (v ? v : null)),
+  trial_date: isoDate.optional().or(z.literal('')).transform((v) => (v ? v : null)),
+  notes: optionalText(1000),
+  lost_reason: optionalText(200),
+});
+export type LeadFormValues = z.input<typeof leadSchema>;
+export type LeadInput = z.output<typeof leadSchema>;
+
 export function zodFieldErrors(error: z.ZodError) {
   return error.flatten().fieldErrors as Record<string, string[] | undefined>;
 }

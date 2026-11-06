@@ -87,3 +87,14 @@ export const PLAN_KIND_LABELS: Record<PlanKind, string> = {
 export function sanitizeSearch(term: string) {
   return term.replace(/[%_,().*\\]/g, ' ').trim().slice(0, 60);
 }
+
+/**
+ * Enlace de WhatsApp (wa.me). Los números de 9 dígitos sin código de país se asumen de Perú (+51);
+ * los que ya traen código (p. ej. +51 987…, +34 6…) se usan tal cual. null si no hay número utilizable.
+ */
+export function whatsappUrl(phone: string | null | undefined, text?: string): string | null {
+  const digits = (phone ?? '').replace(/\D/g, '');
+  if (digits.length < 7) return null;
+  const full = digits.length === 9 ? `51${digits}` : digits;
+  return `https://wa.me/${full}${text ? `?text=${encodeURIComponent(text)}` : ''}`;
+}

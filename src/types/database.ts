@@ -81,6 +81,8 @@ export interface Member {
   medical_notes: string | null;
   emergency_contact: string | null;
   qr_token: string;
+  /** Enlace secreto del portal del socio (migración 0006). null/undefined = portal desactivado. */
+  portal_token?: string | null;
   status: MembershipStatus;
   trainer_id: string | null;
   branch_id: string | null;
@@ -273,3 +275,92 @@ export interface RevenueRow {
 export type ActionResult<T = undefined> =
   | { ok: true; data: T; message?: string }
   | { ok: false; error: string; fieldErrors?: Record<string, string[] | undefined> };
+
+// ---------------------------------------------------------------------
+// Prospectos, retención y portal del socio (migración 0006)
+// ---------------------------------------------------------------------
+
+export type LeadStatus = 'new' | 'contacted' | 'trial' | 'won' | 'lost';
+export type LeadSource = 'walk_in' | 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | 'referral' | 'web' | 'other';
+
+export interface Lead {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  source: LeadSource;
+  interest: string | null;
+  status: LeadStatus;
+  next_follow_up: string | null;
+  trial_date: string | null;
+  notes: string | null;
+  lost_reason: string | null;
+  member_id: string | null;
+  assigned_to: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RetentionReason = 'inactive' | 'birthday' | 'lapsed';
+
+interface RetentionBase {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  last_contact_at: string | null;
+}
+
+export interface RetentionOverview {
+  inactive_days: number;
+  inactive: Array<RetentionBase & { last_visit: string | null; days_since: number | null; end_date: string; plan_name: string }>;
+  birthdays: Array<RetentionBase & { birth_date: string; status: MembershipStatus; days_until: number }>;
+  lapsed: Array<RetentionBase & { end_date: string; plan_name: string; days_since: number }>;
+}
+
+export interface PortalClass {
+  id: string;
+  name: string;
+  discipline: Discipline;
+  starts_at: string;
+  duration_min: number;
+  capacity: number;
+  location: string | null;
+  trainer: string | null;
+  taken: number;
+  booking_id: string | null;
+  booking_status: BookingStatus | null;
+}
+
+export interface PortalData {
+  business: {
+    name: string;
+    logo_path: string | null;
+    phone: string | null;
+    address: string | null;
+    currency: Currency;
+    opening_hours: OpeningHours;
+    timezone: string;
+  };
+  member: { first_name: string; last_name: string; status: MembershipStatus; qr_token: string };
+  membership: {
+    plan: string;
+    start_date: string;
+    end_date: string;
+    status: MembershipStatus;
+    class_credits_left: number | null;
+  } | null;
+  last_end_date: string | null;
+  debt: number;
+  visits_30d: number;
+  routines: Array<{
+    id: string;
+    title: string;
+    goal: string | null;
+    exercises: Exercise[];
+    trainer: string | null;
+    start_date: string;
+  }>;
+  classes: PortalClass[];
+}

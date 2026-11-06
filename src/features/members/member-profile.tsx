@@ -21,6 +21,7 @@ import {
   CreditCard,
   Mail,
   CalendarDays,
+  Smartphone,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSupabaseBrowser } from '@/lib/supabase/client';
@@ -37,6 +38,7 @@ import { Avatar, EmptyState } from '@/components/ui/feedback';
 import { ConfirmDialog, Modal } from '@/components/ui/modal';
 import { Field, Input } from '@/components/ui/form';
 import { MemberForm } from './member-form';
+import { PortalAccessModal } from './portal-access';
 import { changeMembershipState, setMemberPhoto, updateMember } from './actions';
 import { SellMembershipForm } from '@/features/pos/sell-membership-form';
 import { PaymentMethodPicker } from '@/features/pos/payment-method-picker';
@@ -72,6 +74,7 @@ export function MemberProfile({ member, photoUrl, memberships, plans, routines, 
   const [uploading, setUploading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [portalOpen, setPortalOpen] = useState(false);
   const [sellOpen, setSellOpen] = useState(false);
   const [debtTarget, setDebtTarget] = useState<MembershipWithPlan | null>(null);
   const [cancelTarget, setCancelTarget] = useState<MembershipWithPlan | null>(null);
@@ -202,6 +205,9 @@ export function MemberProfile({ member, photoUrl, memberships, plans, routines, 
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setQrOpen(true)}>
               <QrCode className="h-4 w-4" /> QR de acceso
+            </Button>
+            <Button variant="outline" onClick={() => setPortalOpen(true)}>
+              <Smartphone className="h-4 w-4" /> Portal
             </Button>
             {can('members', 'update') && (
               <Button variant="outline" onClick={() => setEditOpen(true)}>
@@ -388,6 +394,8 @@ export function MemberProfile({ member, photoUrl, memberships, plans, routines, 
           </Button>
         </div>
       </Modal>
+
+      <PortalAccessModal member={member} open={portalOpen} onClose={() => setPortalOpen(false)} />
 
       <Modal open={sellOpen} onClose={() => setSellOpen(false)} title="Vender membresía" description={fullName} size="md">
         <SellMembershipForm
